@@ -1,11 +1,13 @@
 package controllers;
 
+import com.avaje.ebean.Ebean;
 import com.fasterxml.jackson.databind.JsonNode;
 import models.User;
 import org.scribe.builder.ServiceBuilder;
 import org.scribe.builder.api.LinkedInApi;
 import org.scribe.model.*;
 import play.core.Router;
+import play.db.ebean.Model;
 import play.libs.Json;
 import play.mvc.*;
 import org.scribe.oauth.OAuthService;
@@ -40,11 +42,22 @@ public class Application extends Controller {
 
     public static Result callback() {
 
-        final Map<String, String[]> parameters = request().body().asFormUrlEncoded();
 
-        if (!parameters.containsKey("error")&&parameters.containsKey("code")) {
-            Verifier verifier = new Verifier(parameters.get("code")[0]);
-            Token accessToken = getService().getAccessToken(requestToken, verifier);
+        //final Map<String, String[]> parameters = request().body().asFormUrlEncoded();
+
+        /*JsonNode requ =*/
+            String oauthVerifier = request().getQueryString("oauth_verifier");//.asText();//asJson();
+            String oauthToken = request().getQueryString("oauth_token");
+
+
+
+            User user = (User) new Model.Finder(Token.class,User.class).where().eq("requestTokenString",oauthToken).findUnique();
+
+
+
+            Verifier verifier = new Verifier(oauthVerifier);
+            Token accessToken = getService().getAccessToken(new Token(user.requestTokenString,user.requestTokenSecret), verifier);
+
 
             OAuthRequest request = new OAuthRequest(Verb.GET, "https://api.linkedin.com/v1/people/~?format=json");
             getService().signRequest(accessToken,request);
@@ -52,24 +65,27 @@ public class Application extends Controller {
             JsonNode json = Json.parse(response.getBody());
 
 
-            user.verificationKey = verifier;
-            user.accessToken = accessToken;
+            user.verificationKey = oauthVerifier;
+            user.accessTokenSecret = accessToken.getSecret();
+            user.accessTokenString = accessToken.getToken();
 
             user.firstname = json.get("firstName").textValue();
             user.lastname = json.get("lastName").textValue();
 
             user.save();
 
-        }
 
-        return ok();
+
+        return ok(user.firstname+" "+user.lastname);
     }
 
     public static Result requestLinkedin() {
         try {
             requestToken = getService().getRequestToken();//token must be preserved for future connections
 
-            user.requestToken = requestToken;
+
+            user.requestTokenString = requestToken.getToken();
+            user.requestTokenSecret = requestToken.getSecret();
             user.save();
 
             //link to get the authorization
@@ -77,7 +93,7 @@ public class Application extends Controller {
             return redirect(url);
         } catch (Exception e) {
             Logger.getGlobal().log(Level.SEVERE,"An error occurred while login through linkedIn : "+e);
-            return ok(index.render("An error occurred"));
+            return ok("An error occurred");
         }
     }
 }

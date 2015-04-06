@@ -19,9 +19,11 @@ public class User extends Model {
     public String firstname;
     public String lastname;
     //public String email; Unavailable in basic profile response
-    public Token requestToken;
-    public Verifier verificationKey;
-    public Token accessToken;
+    public String requestTokenSecret;
+    public String requestTokenString;
+    public String verificationKey;
+    public String accessTokenSecret;
+    public String accessTokenString;
 
 
 }
